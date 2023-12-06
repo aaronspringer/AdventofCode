@@ -60,6 +60,12 @@ print(" ".join(liststring))
 # Output:
 # Hello World
 
+# Total of elements in a list
+totallist = [1, 2, 3, 4, 5]
+print(sum(totallist))
+# Output:
+# 15
+
 # Transpose a matrix
 transposematrix = [[1, 2, 3], [4, 5, 6]]
 newtransposematrix = list(zip(*transposematrix))

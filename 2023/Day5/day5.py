@@ -1,53 +1,94 @@
-def parse_map(map_str):
-    map_dict = {}
-    for line in map_str.split('\n'):
-        dest_start, src_start, length = map(int, line.split())
-        for i in range(length):
-            map_dict[src_start + i] = dest_start + i
-    return map_dict
+import time
 
-def convert_number(number, conversion_map):
-    return conversion_map.get(number, number)
 
-def find_lowest_location(seeds, maps):
-    seed_to_soil = parse_map(maps['seed_to_soil_map'])
-    soil_to_fertilizer = parse_map(maps['soil_to_fertilizer_map'])
-    fertilizer_to_water = parse_map(maps['fertilizer_to_water_map'])
-    water_to_light = parse_map(maps['water_to_light_map'])
-    light_to_temperature = parse_map(maps['light_to_temperature_map'])
-    temperature_to_humidity = parse_map(maps['temperature_to_humidity_map'])
-    humidity_to_location = parse_map(maps['humidity_to_location_map'])
+# Taken off of github for reference, this is not my code, I have not entered a part 2 answer for this problem yet
 
-    min_location = float('inf')
-    for seed in seeds:
-        soil = convert_number(seed, seed_to_soil)
-        fertilizer = convert_number(soil, soil_to_fertilizer)
-        water = convert_number(fertilizer, fertilizer_to_water)
-        light = convert_number(water, water_to_light)
-        temperature = convert_number(light, light_to_temperature)
-        humidity = convert_number(temperature, temperature_to_humidity)
-        location = convert_number(humidity, humidity_to_location)
-        min_location = min(min_location, location)
 
-    return min_location
+def part1(data, seeds, mappers):
+    print("Part 1:", min([translate(mappers, 'seed', 'location', seed) for seed in seeds]))
 
-def read_input_file(filename):
-    with open(filename, 'r') as file:
-        lines = file.read().split('\n\n')
 
-    seeds = list(map(int, lines[0].split(': ')[1].split()))
-    maps = {}
+def part2(data, seeds, mappers):
+    results = [expand(mappers, 'seed', 'location', seed_range) for seed_range in zip(seeds[0::2], seeds[1::2])]
 
-    for section in lines[1:]:
-        title, values = section.split(':')
-        maps[title.strip().replace('-', '_').replace(' ', '_')] = values.strip()
+    # flatten the list of lists into a list
+    results = [item for sublist in results for item in sublist]
 
-    return seeds, maps
+    # answer is the minimum value of the first element of each tuple
+    print("Part 2:", min(x[0] for x in results))
 
-def main(filename):
-    seeds, maps = read_input_file(filename)
-    lowest_location = find_lowest_location(seeds, maps)
-    return lowest_location
 
-print(main('input.txt'))
+# expand takes a source, dest, and a range and returns a list of ranges
+def expand(mappers, source, dest, seed_range) -> list:
+    if source == dest:
+        return [seed_range]
+    mapping = mappers[source]
+    expanded = []
+    for dest_start, source_start, length in mapping[1]:
+        if seed_range[0] < source_start < seed_range[0] + seed_range[1] <= source_start + length:
+            left_range = (seed_range[0], source_start - seed_range[0])
+            right_range = (dest_start, seed_range[1] - left_range[1])
+            expanded = expanded + expand(mappers, mapping[0], dest, right_range) + expand(mappers, source, dest,
+                                                                                          left_range)
+            break
+        elif source_start <= seed_range[0] < source_start + length < seed_range[0] + seed_range[1]:
+            left_range = (dest_start + seed_range[0] - source_start, source_start + length - seed_range[0])
+            right_range = (source_start + length, seed_range[0] + seed_range[1] - source_start - length)
+            expanded = expanded + expand(mappers, mapping[0], dest, left_range) + expand(mappers, source, dest,
+                                                                                         right_range)
+            break
+        elif seed_range[0] >= source_start and seed_range[0] + seed_range[1] <= source_start + length:
+            expanded = expanded + expand(mappers, mapping[0], dest,
+                                         (dest_start + seed_range[0] - source_start, seed_range[1]))
+            break
+        elif seed_range[0] < source_start and seed_range[0] + seed_range[1] > source_start + length:
+            left_range = (seed_range[0], source_start - seed_range[0])
+            right_range = (source_start + length, seed_range[0] + seed_range[1] - source_start - length)
+            middle_range = (dest_start, length)
+            expanded = expanded + expand(mappers, source, dest, right_range) + expand(mappers, mapping[0], dest,
+                                                                                      middle_range) + expand(mappers,
+                                                                                                             source,
+                                                                                                             dest,
+                                                                                                             left_range)
+            break
 
+    if not expanded:
+        expanded = expanded + expand(mappers, mapping[0], dest, seed_range)
+
+    return expanded
+
+
+# translate takes a source, dest, and value and returns the translated value
+def translate(mappers, source, dest, value):
+    if source == dest:
+        return value
+    mapping = mappers[source]
+    for dest_start, source_start, length in mapping[1]:
+        if source_start <= value < source_start + length:
+            return translate(mappers, mapping[0], dest, dest_start + (value - source_start))
+    return translate(mappers, mapping[0], dest, value)
+
+
+# function to take a string and return a tuple of the source map, dest map, and translation
+def makeMap(data):
+    map_data = data.splitlines()
+    sourceMap, destMap = map_data[0].split()[0].split('-')[0], map_data[0].split()[0].split('-')[2]
+    translation = [list(map(int, x.split())) for x in map_data[1:]]
+    return sourceMap, destMap, translation
+
+
+# function to read the file and split the data at blank lines
+def readMap():
+    with open('input.txt') as f:
+        return f.read().split('\n\n')
+
+
+if __name__ == "__main__":
+    data = readMap()
+    seeds = [int(x) for x in data[0].split()[1:]]
+    mappers = {makeMap(mapper)[0]: makeMap(mapper)[1:] for mapper in data[1:]}
+    part1(data, seeds, mappers)
+    start_time = time.time()
+    part2(data, seeds, mappers)
+    end_time = time.time()
+    print("--- %s seconds ---" % (end_time - start_time))
